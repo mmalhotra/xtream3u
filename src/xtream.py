@@ -45,6 +45,7 @@ Authentication returns information about the account and self.server:
 
 """
 import requests
+from urllib.parse import urlunsplit, urljoin
 
 
 class XCCache:
@@ -61,10 +62,65 @@ class Xtream:
         self.username = username
         self.password = password
         self.cc = XCCache()
+        self.live_formats_pref = []
+
+    def get_root_url(self):
+        scheme = self.cc.authData["server_info"]["server_protocol"]
+        netloc = "{url}:{port}".format(
+            url=self.cc.authData["server_info"]["url"], port=self.cc.authData["server_info"]["port"]
+        )
+        return urlunsplit((scheme, netloc, "", "", ""))
+
+    def get_authenticated_url_format_string(self):
+        """
+        returns http(s)://domain:port/{stream_type}/username/password/{stream_id}.{stream_ext}
+        """
+        return urljoin(
+            self.get_root_url(),
+            "/".join(["{stream_type}", self.username, self.password, "{stream_id}.{stream_ext}"]),
+        )
+
+    def _post_process_response(func):
+        def process_response(*args, **kwargs):
+            resp = func(*args, **kwargs)
+            if resp.headers.get("content-type") != "application/json" or not isinstance(
+                args[0], Xtream
+            ):
+                return resp
+            the_json = resp.json()
+            list_iter = the_json
+            if not isinstance(the_json, list):
+                list_iter = [the_json]
+            format_string_url = args[0].get_authenticated_url_format_string()
+            for stream_info in list_iter:
+                if isinstance(stream_info, dict) and "stream_id" in stream_info:
+                    stream_type = stream_info.get("stream_type")
+                    if stream_type == Xtream.liveType.lower() and args[0].live_formats_pref:
+                        stream_f_dict = {"stream_ext": args[0].live_formats_pref[0]}
+                        stream_f_dict.update(stream_info)
+                        stream_info["stream_link"] = format_string_url.format(**stream_f_dict)
+                    elif stream_type == "movie" and "container_extension" in stream_info:
+                        stream_f_dict = {"stream_ext": stream_info["container_extension"]}
+                        stream_f_dict.update(stream_info)
+                        stream_info["stream_link"] = format_string_url.format(**stream_f_dict)
+                elif "episodes" in stream_info:
+                    for season_num, episodes_list in stream_info["episodes"].items():
+                        for episode_info in episodes_list:
+                            stream_f_dict = {
+                                "stream_ext": episode_info["container_extension"],
+                                "stream_id": episode_info["id"],
+                                "stream_type": "series",
+                            }
+                            stream_f_dict.update(stream_info)
+                            episode_info["stream_link"] = format_string_url.format(**stream_f_dict)
+            return the_json
+
+        return process_response
 
     def authenticate(self):
         resp = requests.get(self.get_authenticate_url())
         self.cc.authData = resp.json()
+        self.live_formats_pref = sorted(self.cc.authData["user_info"]["allowed_output_formats"])
         return resp
 
     def categories(self, stream_type):
@@ -78,6 +134,7 @@ class Xtream:
 
         return requests.get(the_url)
 
+    @_post_process_response
     def streams(self, stream_type):
         the_url = ""
         if stream_type == Xtream.liveType:
@@ -89,6 +146,7 @@ class Xtream:
 
         return requests.get(the_url)
 
+    @_post_process_response
     def streams_by_category(self, stream_type, category_id):
         the_url = ""
         if stream_type == Xtream.liveType:
@@ -100,6 +158,7 @@ class Xtream:
 
         return requests.get(the_url)
 
+    @_post_process_response
     def series_info_by_id(self, series_id):
         """
         The seasons array, might be filled or might be completely empty.
@@ -108,6 +167,7 @@ class Xtream:
         """
         return requests.get(self.get_series_info_url_by_id(series_id))
 
+    @_post_process_response
     def vod_info_by_id(self, vod_id):
         return requests.get(self.get_vod_info_url_by_id(vod_id))
 
@@ -252,16 +312,13 @@ class Xtream:
         return url
 
     def get_live_epg_url_by_stream_and_limit(self, stream_id, limit):
-        url = (
-            "%s/player_api.php?username=%s&password=%s&action=%s&stream_id=%s&limit=%s"
-            % (
-                self.server,
-                self.username,
-                self.password,
-                "get_short_epg",
-                stream_id,
-                limit,
-            )
+        url = "%s/player_api.php?username=%s&password=%s&action=%s&stream_id=%s&limit=%s" % (
+            self.server,
+            self.username,
+            self.password,
+            "get_short_epg",
+            stream_id,
+            limit,
         )
         return url
 
@@ -282,3 +339,14 @@ class Xtream:
             self.password,
         )
         return url
+
+
+if __name__ == "__main__":
+    import os
+
+    xtream = Xtream(os.environ["XTREAM_SERVER"], os.environ["XTREAM_UN"], os.environ["XTREAM_PWD"])
+    rs = xtream.authenticate()
+    print(rs.json())
+    print(xtream.get_root_url())
+    ra = xtream.series_info_by_id(4)
+    print("breakpoint")
