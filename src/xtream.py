@@ -344,8 +344,6 @@ class Xtream:
 
 
 if __name__ == "__main__":
-    import os
-
     xtream = Xtream(os.environ["XTREAM_SERVER"], os.environ["XTREAM_UN"], os.environ["XTREAM_PWD"])
     rs = xtream.authenticate()
     print(rs.json())
