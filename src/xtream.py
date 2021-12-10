@@ -45,6 +45,8 @@ Authentication returns information about the account and self.server:
 
 """
 import requests
+import json
+import os
 from urllib.parse import urlunsplit, urljoin
 
 
@@ -348,5 +350,9 @@ if __name__ == "__main__":
     rs = xtream.authenticate()
     print(rs.json())
     print(xtream.get_root_url())
-    ra = xtream.series_info_by_id(4)
+    with open(os.path.join(os.environ.get("XTREAM_DUMP_PATH", "/tmp"), "{}.txt".format(os.environ["XTREAM_UN"])), "w") as fd:
+        dsa = xtream.streams(xtream.liveType)
+        json.dump(dsa, fd, indent=4, sort_keys=True)
+    #ra = xtream.categories(xtream.liveType)
+    # dsa = xtream.streams_by_category(xtream.liveType, 1)
     print("breakpoint")
