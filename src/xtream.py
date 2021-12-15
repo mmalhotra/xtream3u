@@ -374,7 +374,7 @@ if __name__ == "__main__":
     print(xtream.get_root_url())
     with open(
         os.path.join(
-            os.environ.get("XTREAM_DUMP_PATH", "/tmp"), "{}.txt".format(os.environ["XTREAM_UN"])
+            os.environ.get("XTREAM_DUMP_PATH", "/tmp"), "{}.txt".format(xtream_un)
         ),
         "w",
     ) as fd:
