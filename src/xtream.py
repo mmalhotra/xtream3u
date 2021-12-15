@@ -47,7 +47,7 @@ Authentication returns information about the account and self.server:
 import requests
 import json
 import os
-from urllib.parse import urlunsplit, urljoin
+from urllib.parse import urlunsplit, urljoin, urlparse, urlunparse
 
 
 class XCCache:
@@ -344,13 +344,42 @@ class Xtream:
 
 
 if __name__ == "__main__":
-    xtream = Xtream(os.environ["XTREAM_SERVER"], os.environ["XTREAM_UN"], os.environ["XTREAM_PWD"])
+    xtream_server, xtream_un, xtream_pwd = None, None, None
+    if os.environ.get("XTREAM_URL"):
+        parsed = urlparse(os.environ["XTREAM_URL"])
+        fake_url = list(parsed)
+        for p_idx in range(2, len(fake_url)):
+            fake_url[p_idx] = ""
+        state = "un"
+        for p_val in parsed.path.split("/"):
+            if p_val:
+                if state == "un":
+                    xtream_un = p_val
+                    state = "pwd"
+                elif state == "pwd":
+                    xtream_pwd = p_val
+                    state = "fin"
+            if state == "fin":
+                break
+        xtream_server = urlunparse(fake_url)
+    else:
+        xtream_server, xtream_un, xtream_pwd = (
+            os.environ["XTREAM_SERVER"],
+            os.environ["XTREAM_UN"],
+            os.environ["XTREAM_PWD"],
+        )
+    xtream = Xtream(xtream_server, xtream_un, xtream_pwd)
     rs = xtream.authenticate()
     print(rs.json())
     print(xtream.get_root_url())
-    with open(os.path.join(os.environ.get("XTREAM_DUMP_PATH", "/tmp"), "{}.txt".format(os.environ["XTREAM_UN"])), "w") as fd:
+    with open(
+        os.path.join(
+            os.environ.get("XTREAM_DUMP_PATH", "/tmp"), "{}.txt".format(os.environ["XTREAM_UN"])
+        ),
+        "w",
+    ) as fd:
         dsa = xtream.streams(xtream.liveType)
         json.dump(dsa, fd, indent=4, sort_keys=True)
-    #ra = xtream.categories(xtream.liveType)
+    # ra = xtream.categories(xtream.liveType)
     # dsa = xtream.streams_by_category(xtream.liveType, 1)
     print("breakpoint")
