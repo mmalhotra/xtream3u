@@ -374,11 +374,19 @@ if __name__ == "__main__":
     print(xtream.get_root_url())
     with open(
         os.path.join(
-            os.environ.get("XTREAM_DUMP_PATH", "/tmp"), "{}.txt".format(xtream_un)
+            os.environ.get("XTREAM_DUMP_PATH", "/tmp"), "{}_live.txt".format(xtream_un)
         ),
         "w",
     ) as fd:
         dsa = xtream.streams(xtream.liveType)
+        json.dump(dsa, fd, indent=4, sort_keys=True)
+    with open(
+        os.path.join(
+            os.environ.get("XTREAM_DUMP_PATH", "/tmp"), "{}_movies.txt".format(xtream_un)
+        ),
+        "w",
+    ) as fd:
+        dsa = xtream.streams(xtream.vodType)
         json.dump(dsa, fd, indent=4, sort_keys=True)
     # ra = xtream.categories(xtream.liveType)
     # dsa = xtream.streams_by_category(xtream.liveType, 1)
