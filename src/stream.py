@@ -29,7 +29,9 @@ class Stream:
             return self.second_iframe
         if not self.first_iframe:
             self.get_first_iframe_src()
-        resp = requests.get(url or self.first_iframe, headers=DEFAULT_HEADERS)
+        my_headers = copy.copy(DEFAULT_HEADERS)
+        my_headers["Referer"] = self.url
+        resp = requests.get(url or self.first_iframe, headers=my_headers)
         soup = BeautifulSoup(resp.text, 'html.parser')
         for iframe in soup.find_all("iframe"):
             if iframe.get("src"):
