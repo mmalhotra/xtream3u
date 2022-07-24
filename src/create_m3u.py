@@ -27,14 +27,14 @@ if len(all_channels) > 1:
                 raise
             except Exception as e:
                 print(traceback.print_exc())
-                print("Skipping {}\t{}\t:{}".format(channel_name, channel_url. e))
+                print("Skipping {}\t{}\t:{}".format(channel_dict, channel_url, e))
 
         for category, programs in sorted(daddy.categories_to_program.items(), key=lambda x:x[0]):
             for program in sorted(set(programs)):
                 header = False
                 for program_channel_url, program_channel_name in sorted(daddy.program_to_channel.get(program, {}).items(), key=lambda x:x[1]):
                     channel_dict = all_channels.get(program_channel_url)
-                    if not channel_dict:
+                    if not channel_dict or not channel_dict.get("stream_url"):
                         continue
                     if not header:
                         fd.write(template.format("", "", category, program, channel_dict["stream_url"], channel_dict["stream_referer"]))

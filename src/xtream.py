@@ -115,6 +115,8 @@ class Xtream:
                             }
                             stream_f_dict.update(stream_info)
                             episode_info["stream_link"] = format_string_url.format(**stream_f_dict)
+                if "series_id" in stream_info:
+                    stream_info["series_info"] = args[0].get_series_info_url_by_id(stream_info["series_id"])
             return the_json
 
         return process_response
@@ -372,13 +374,30 @@ if __name__ == "__main__":
     rs = xtream.authenticate()
     print(rs.json())
     print(xtream.get_root_url())
+
+    def get_categories_lookup(stream_type):
+        return {
+                cat["category_id"] : cat
+                    for cat in xtream.categories(stream_type).json()
+                }
+    vod_cats = get_categories_lookup(xtream.vodType)
+    live_cats = get_categories_lookup(xtream.liveType)
+    series_cats = get_categories_lookup(xtream.seriesType)
+
+    def add_category_info(stream, cats):
+        stream_cat = stream.get("category_id")
+        cat = cats.get(stream_cat)
+        if cat:
+            stream["category"] = cat
+        return stream
+
     with open(
         os.path.join(
             os.environ.get("XTREAM_DUMP_PATH", "/tmp"), "{}_live.txt".format(xtream_un)
         ),
         "w",
     ) as fd:
-        dsa = xtream.streams(xtream.liveType)
+        dsa = [add_category_info(x, live_cats) for x in xtream.streams(xtream.liveType)]
         json.dump(dsa, fd, indent=4, sort_keys=True)
     with open(
         os.path.join(
@@ -386,7 +405,15 @@ if __name__ == "__main__":
         ),
         "w",
     ) as fd:
-        dsa = xtream.streams(xtream.vodType)
+        dsa = [add_category_info(x, vod_cats) for x in xtream.streams(xtream.vodType)]
+        json.dump(dsa, fd, indent=4, sort_keys=True)
+    with open(
+        os.path.join(
+            os.environ.get("XTREAM_DUMP_PATH", "/tmp"), "{}_series.txt".format(xtream_un)
+        ),
+        "w",
+    ) as fd:
+        dsa = [add_category_info(x, series_cats) for x in xtream.streams(xtream.seriesType)]
         json.dump(dsa, fd, indent=4, sort_keys=True)
     # ra = xtream.categories(xtream.liveType)
     # dsa = xtream.streams_by_category(xtream.liveType, 1)
