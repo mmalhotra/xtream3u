@@ -65,6 +65,7 @@ class Xtream:
         self.password = password
         self.cc = XCCache()
         self.live_formats_pref = []
+        self.categories = {}
 
     def get_root_url(self):
         scheme = self.cc.authData["server_info"]["server_protocol"]
@@ -94,6 +95,16 @@ class Xtream:
             if not isinstance(the_json, list):
                 list_iter = [the_json]
             format_string_url = args[0].get_authenticated_url_format_string()
+            def add_category_info(xtream_obj, asset_dict, stream_type):
+                xtream_obj.fetch_categories(stream_type)
+                cat_dict = xtream_obj.categories[stream_type]
+                main_cat = asset_dict.get("category_id")
+                if main_cat:
+                    asset_dict["category"] = cat_dict.get(main_cat)
+                for o_cat in asset_dict.get("category_ids", []):
+                    o_cat_dict = cat_dict.get(o_cat)
+                    if o_cat_dict:
+                        asset_dict.setdefault("categories", []).append(o_cat_dict)
             for stream_info in list_iter:
                 if isinstance(stream_info, dict) and "stream_id" in stream_info:
                     stream_type = stream_info.get("stream_type")
@@ -101,11 +112,14 @@ class Xtream:
                         stream_f_dict = {"stream_ext": args[0].live_formats_pref[0]}
                         stream_f_dict.update(stream_info)
                         stream_info["stream_link"] = format_string_url.format(**stream_f_dict)
+                        add_category_info(args[0], stream_info, Xtream.liveType)
                     elif stream_type == "movie" and "container_extension" in stream_info:
                         stream_f_dict = {"stream_ext": stream_info["container_extension"]}
                         stream_f_dict.update(stream_info)
                         stream_info["stream_link"] = format_string_url.format(**stream_f_dict)
+                        add_category_info(args[0], stream_info, Xtream.vodType)
                 elif "episodes" in stream_info:
+                    add_category_info(args[0], stream_info, Xtream.seriesType)
                     for season_num, episodes_list in stream_info["episodes"].items():
                         for episode_info in episodes_list:
                             stream_f_dict = {
@@ -125,7 +139,9 @@ class Xtream:
         self.live_formats_pref = sorted(self.cc.authData["user_info"]["allowed_output_formats"])
         return resp
 
-    def categories(self, stream_type):
+    def fetch_categories(self, stream_type):
+        if stream_type in self.categories:
+            return
         the_url = ""
         if stream_type == Xtream.liveType:
             the_url = self.get_live_categories_url()
@@ -134,7 +150,11 @@ class Xtream:
         elif stream_type == Xtream.seriesType:
             the_url = self.get_series_cat_url()
 
-        return requests.get(the_url)
+        resp = requests.get(the_url)
+        cat_dict = {}
+        for cats in resp.json():
+            cat_dict[cats["category_id"]] = cats
+        self.categories[stream_type] = cat_dict
 
     @_post_process_response
     def streams(self, stream_type):
@@ -353,6 +373,8 @@ if __name__ == "__main__":
         state = "un"
         for p_val in parsed.path.split("/"):
             if p_val:
+                if p_val in {"series", "movie", "live"}:
+                    continue
                 if state == "un":
                     xtream_un = p_val
                     state = "pwd"
@@ -387,6 +409,14 @@ if __name__ == "__main__":
         "w",
     ) as fd:
         dsa = xtream.streams(xtream.vodType)
+        json.dump(dsa, fd, indent=4, sort_keys=True)
+    with open(
+        os.path.join(
+            os.environ.get("XTREAM_DUMP_PATH", "/tmp"), "{}_series.txt".format(xtream_un)
+        ),
+        "w",
+    ) as fd:
+        dsa = xtream.streams(xtream.seriesType)
         json.dump(dsa, fd, indent=4, sort_keys=True)
     # ra = xtream.categories(xtream.liveType)
     # dsa = xtream.streams_by_category(xtream.liveType, 1)
